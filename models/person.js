@@ -21,7 +21,16 @@ mongoose
         },
         number: {
             type: String,
-            required: true
+            required: true,
+            validate: {
+                validator: (v) => {
+                    if (v.length < 8) {
+                        return false
+                    }
+                    return /\d{2,3}-\d+/.test(v)
+                },
+                message: props => `${props.value} is not a valid phone number!`
+            }
         }
     })
 
