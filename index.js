@@ -13,29 +13,6 @@ app.use(express.static('dist'))
 morgan.token('person', (req, res) => { return JSON.stringify(req.body) })
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :person'))
 
-let persons = [
-    { 
-      "id": "1",
-      "name": "Arto Hellas",
-      "number": "040-123456"
-    },
-    { 
-      "id": "2",
-      "name": "Ada Lovelace",
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": "3",
-      "name": "Dan Abramov",
-      "number": "12-43-234345"
-    },
-    { 
-      "id": "4",
-      "name": "Mary Poppendieck",
-      "number": "39-23-6423122"
-    }
-]
-
 app.get('/api/persons', (request, response) => {
     Person.find({}).then(persons => {
         response.json(persons)
@@ -46,24 +23,19 @@ const generateId = () => {
     return Math.floor(Math.random() * 1000000)
 }
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
     const body = request.body
-
-    if (!body.name || !body.number) {
-        return response.status(400).json({
-            error: 'Please provide both name and number'
-        })
-    }
 
     const person = new Person({
         name: body.name,
         number: body.number
     })
 
-    person.save().then(savedPerson => {
-        persons = persons.concat(savedPerson)
-        response.json(savedPerson)
-    })
+    person.save()
+        .then(savedPerson => {
+            response.json(savedPerson)
+        })
+        .catch(error => next(error))
 })
 
 app.get('/api/persons/:id', (request, response, next) => {
@@ -80,11 +52,12 @@ app.get('/api/persons/:id', (request, response, next) => {
 
 app.put('/api/persons/:id', (request, response, next) => {
     const {name, number} = request.body
-    const person = {name, number}
-    Person.findByIdAndUpdate(request.params.id, person)
+    const newPerson = {name, number}
+    Person.findByIdAndUpdate(request.params.id, newPerson, {runValidators: true})
         .then(person => {
             if (person) {
-                response.json(person)
+                newPerson.id = request.params.id
+                response.json(newPerson)
             } else {
                 response.status(404).end()
             }
@@ -115,6 +88,8 @@ const errorHandler = (error, request, response, next) => {
     
     if (error.name === 'CastError') {
         return response.status(400).send({ error: 'malformatted id' })
+    } else if (error.name === 'ValidationError') {
+        return response.status(400).json({ error: error.message })
     }
 
     next(error)
